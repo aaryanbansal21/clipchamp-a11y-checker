@@ -96,7 +96,7 @@ Algorithm:
 1. **Per-cell state**: last turning-point luminance and current direction (+1, −1, 0). On each frame, a cell registers a transition when its luminance has moved ≥ `deltaLum` from the turning point in the opposite direction of the current one, and the darker of the two values is < `darkBelow`. The turning point then updates.
 2. **Frame-level transition**: if ≥ `areaFraction` of cells transition in the same direction in this frame, record `{t, dir}` in the general transition list. Direction must alternate; two same-direction frame transitions in a row count once.
 3. **Red channel**: same procedure, but the per-cell signal is entering or leaving saturated red (a change in the `red` bit). Kept in a separate transition list.
-4. **Counting**: a flash is a pair of opposing transitions. For each list, slide a 1 s window over transitions; if `floor(count / 2) > maxFlashesPerSecond`, the window is a violation. Overlapping or touching violation windows merge into one `FlashEvent`; `peakPerSecond` is the max flashes/second seen inside it.
+4. **Counting**: a flash is a pair of opposing transitions. For each list, slide a 1 s window over transitions; if `floor(count / 2) > maxFlashesPerSecond`, the window is a violation. A violation whose window starts within 1 s of the open event's end extends that event (so two bursts a fraction of a second apart show as one incident); otherwise a new event starts. An event is emitted once 2 s have passed since its end with no extension (1 s merge gap + 1 s detection window), or at `finish()`. `peakPerSecond` is the max flashes/second seen inside it.
 
 Deliberate simplifications (marked `// ponytail:` in code):
 
