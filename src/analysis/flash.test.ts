@@ -65,6 +65,21 @@ describe('FlashDetector', () => {
     expect(events[0].kind).toBe('red')
   })
 
+  it('catches a 1 s burst inside a 30 s calm video (average well under threshold)', () => {
+    const det = new FlashDetector(CELLS)
+    const wave = square(5, 0.1, 0.9)
+    const events = [
+      ...run(det, 10, () => 0.5),                     // calm: 0–10 s
+      ...run(det, 1, wave, () => 0, 10 * FPS),        // burst: 10–11 s (5 flashes)
+      ...run(det, 19, () => 0.5, () => 0, 11 * FPS),  // calm: 11–30 s
+      ...det.finish(),
+    ]
+    expect(events).toHaveLength(1)
+    expect(events[0].start).toBeCloseTo(10, 1) // calm→burst edge at 10.0 s counts as a transition
+    expect(events[0].end).toBeCloseTo(11, 1)   // burst→calm edge at 11.0 s
+    expect(events[0].peakPerSecond).toBe(5)
+  })
+
   it('merges two bursts 0.5 s apart into one event', () => {
     const det = new FlashDetector(CELLS)
     const wave = square(5, 0.1, 0.9)
