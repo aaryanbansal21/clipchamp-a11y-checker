@@ -33,7 +33,7 @@ class Channel {
     const last = this.transitions.at(-1)
     if (last?.dir === dir) return null // same direction twice counts once
     this.transitions.push({ t, dir })
-    while (this.transitions[0].t < t - 1) this.transitions.shift() // keep the (t−1, t] window
+    while (this.transitions[0].t <= t - 1) this.transitions.shift() // keep the (t−1, t] window
     const flashes = Math.floor(this.transitions.length / 2)
     if (flashes <= this.th.maxFlashesPerSecond) return null
 

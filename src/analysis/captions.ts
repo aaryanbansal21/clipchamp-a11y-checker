@@ -10,7 +10,7 @@ const secs = (m: RegExpMatchArray) => +(m[1] ?? 0) * 3600 + +m[2] * 60 + +m[3] +
 /** Parses SRT or WebVTT. Blocks without a `-->` line (WEBVTT header, NOTE) are skipped. */
 export function parseCaptions(text: string): Cue[] {
   const cues: Cue[] = []
-  for (const block of text.replace(/\r/g, '').split(/\n\n+/)) {
+  for (const block of text.replace(/\r/g, '').split(/\n[ \t]*\n+/)) {
     const lines = block.split('\n')
     const i = lines.findIndex((l) => l.includes('-->'))
     if (i < 0) continue
