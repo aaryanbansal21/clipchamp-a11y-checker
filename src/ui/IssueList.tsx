@@ -17,10 +17,10 @@ export function IssueList({ issues, onSeek }: { issues: Issue[]; onSeek: (t: num
         <li key={k}>
           <button onClick={() => onSeek(i.start)}>
             <span className="dot" style={{ background: i.color }} />
-            <time>{fmt(i.start)}–{fmt(i.end)}</time>
+            <time>{fmt(i.start)} – {fmt(i.end)}</time>
             <strong>{i.title}</strong>
-            <span>{i.detail}</span>
-            <em>{i.tier}</em>
+            <span className="detail">{i.detail}</span>
+            <em className={i.tier.toLowerCase()}>{i.tier}</em>
           </button>
         </li>
       ))}

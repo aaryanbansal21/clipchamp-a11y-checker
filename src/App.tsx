@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { checkCaptions, parseCaptions } from './analysis/captions'
 import type { CaptionEvent, FlashEvent, WorkerOut } from './analysis/types'
 import { IssueList, type Issue } from './ui/IssueList'
@@ -10,7 +10,7 @@ type Status =
   | { kind: 'done'; frames: number; ms: number }
   | { kind: 'error'; message: string }
 
-const COLOR = { general: '#d13438', red: '#7a1f1f', caption: '#0078d4' }
+const COLOR = { general: '#ff5c5c', red: '#c02020', caption: '#4cc2ff' }
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null)
@@ -19,23 +19,28 @@ export default function App() {
   const [captions, setCaptions] = useState<CaptionEvent[]>([])
   const [captionNote, setCaptionNote] = useState('')
   const [duration, setDuration] = useState(0)
+  const [current, setCurrent] = useState(0)
   const [over, setOver] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const url = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file])
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
 
-  // One worker per file; terminated on unmount or when a new file is dropped.
+  // One worker per file; terminated when it finishes, on unmount, or when a new file is dropped.
   useEffect(() => {
     if (!file) return
     setFlashes([])
+    setDuration(0)
+    setCurrent(0)
     setStatus({ kind: 'running', t: 0, duration: 0 })
     const worker = new Worker(new URL('./worker/analyze.worker.ts', import.meta.url), { type: 'module' })
     worker.onmessage = ({ data }: MessageEvent<WorkerOut>) => {
-      if (data.type === 'progress') setStatus({ kind: 'running', t: data.t, duration: data.duration })
-      else if (data.type === 'event') setFlashes((f) => [...f, data.event])
-      else if (data.type === 'done') setStatus({ kind: 'done', frames: data.frames, ms: data.ms })
-      else setStatus({ kind: 'error', message: data.message })
+      if (data.type === 'progress') {
+        setStatus({ kind: 'running', t: data.t, duration: data.duration })
+        setDuration((d) => d || data.duration) // fallback if <video> can't report metadata
+      } else if (data.type === 'event') setFlashes((f) => [...f, data.event])
+      else if (data.type === 'done') { setStatus({ kind: 'done', frames: data.frames, ms: data.ms }); worker.terminate() }
+      else { setStatus({ kind: 'error', message: data.message }); worker.terminate() }
     }
     worker.postMessage({ type: 'analyze', file })
     return () => worker.terminate()
@@ -45,9 +50,8 @@ export default function App() {
     for (const f of Array.from(list ?? [])) {
       if (/\.(srt|vtt)$/i.test(f.name)) {
         const cues = parseCaptions(await f.text())
-        if (!cues.length) { setCaptionNote(`No cues found in ${f.name}`); continue }
-        setCaptionNote(`${cues.length} cues from ${f.name}`)
         setCaptions(checkCaptions(cues))
+        setCaptionNote(cues.length ? `${cues.length} cues from ${f.name}` : `No cues found in ${f.name}`)
       } else {
         setFile(f)
       }
@@ -62,7 +66,7 @@ export default function App() {
 
   function seek(t: number) {
     const v = videoRef.current
-    if (v) { v.currentTime = t; v.pause() }
+    if (v) { v.currentTime = t; v.pause(); setCurrent(t) }
   }
 
   const issues: Issue[] = [
@@ -80,56 +84,90 @@ export default function App() {
     })),
   ].sort((a, b) => a.start - b.start)
 
+  const toMark = (i: Issue) => ({ start: i.start, end: i.end, color: i.color, label: `${i.title} at ${i.start.toFixed(1)}s` })
+  const lanes = [
+    { name: 'Compliance', marks: issues.filter((i) => i.tier === 'Compliance').map(toMark) },
+    { name: 'Readability', marks: issues.filter((i) => i.tier === 'Readability').map(toMark) },
+  ]
+
   if (typeof VideoDecoder === 'undefined') {
-    return <main><h1>Video Accessibility Checker</h1><p>This tool needs WebCodecs. Please open it in Chrome, Edge or Safari 16.4+.</p></main>
+    return (
+      <div className="app">
+        <header className="topbar"><span className="brand">Accessibility Checker</span></header>
+        <p className="empty">This tool needs WebCodecs. Please open it in Chrome, Edge or Safari 16.4+.</p>
+      </div>
+    )
   }
 
   return (
-    <main>
-      <h1>Video Accessibility Checker</h1>
-      <p className="legend">
-        <span style={{ '--c': COLOR.general } as CSSProperties}>General flash</span>
-        <span style={{ '--c': COLOR.red } as CSSProperties}>Red flash</span>
-        <span style={{ '--c': COLOR.caption } as CSSProperties}>Caption readability</span>
-      </p>
+    <div
+      className={`app${over ? ' over' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setOver(true) }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setOver(false) }}
+      onDrop={onDrop}
+    >
+      <header className="topbar">
+        <span className="brand">Accessibility Checker</span>
+        <span className="hint">Runs in your browser · nothing is uploaded</span>
+        <label className="btn primary">
+          Import media
+          <input type="file" multiple hidden accept="video/*,.srt,.vtt" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
+        </label>
+      </header>
 
-      <label
-        className={`drop${over ? ' over' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setOver(true) }}
-        onDragLeave={() => setOver(false)}
-        onDrop={onDrop}
-      >
-        Drop a video (MP4/WebM) and optionally a caption file (.srt/.vtt), or click to browse.
-        <br />Nothing is uploaded — analysis runs in your browser.
-        <input type="file" multiple hidden accept="video/*,.srt,.vtt" onChange={(e) => addFiles(e.target.files)} />
-      </label>
-      {captionNote && <p className="note">{captionNote}</p>}
+      <section className="stage">
+        {file ? (
+          <video
+            ref={videoRef}
+            src={url}
+            controls
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+          />
+        ) : (
+          <div className="empty">
+            <div className="empty-icon">⬆</div>
+            Drop a video (MP4 / WebM) here, plus an optional caption file (.srt / .vtt)
+          </div>
+        )}
+      </section>
 
-      {file && (
-        <>
-          <video ref={videoRef} src={url} controls onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)} />
+      <section className="panel">
+        <div className="panel-head">
           {status.kind === 'running' && (
             <>
+              <span className="spinner" />
+              <span>Scanning {status.t.toFixed(1)} / {status.duration.toFixed(1)} s</span>
               <progress value={status.t} max={status.duration || 1} />
-              <p className="stats">Scanning… {status.t.toFixed(1)} / {status.duration.toFixed(1)} s</p>
             </>
           )}
           {status.kind === 'done' && (
-            <p className="stats">{status.frames} frames in {(status.ms / 1000).toFixed(1)} s ({Math.round(status.frames / (status.ms / 1000))} fps)</p>
+            <>
+              <span className={`badge ${issues.length ? 'fail' : 'pass'}`}>
+                {issues.length
+                  ? `${flashes.length} compliance issue${flashes.length === 1 ? '' : 's'} · ${captions.length} readability note${captions.length === 1 ? '' : 's'}`
+                  : 'Pass'}
+              </span>
+              <span className="muted">{status.frames} frames in {(status.ms / 1000).toFixed(1)} s · {Math.round(status.frames / (status.ms / 1000))} fps</span>
+            </>
           )}
-          {status.kind === 'error' && <p className="note">{status.message}</p>}
+          {status.kind === 'error' && <span className="error">{status.message}</span>}
+          {status.kind === 'idle' && <span className="muted">Timeline</span>}
+          <span className="legend">
+            <i style={{ background: COLOR.general }} /> General flash
+            <i style={{ background: COLOR.red }} /> Red flash
+            <i style={{ background: COLOR.caption }} /> Caption
+          </span>
+        </div>
+        {captionNote && <p className="muted small">{captionNote}</p>}
+        <Timeline duration={duration} lanes={lanes} current={current} onSeek={seek} />
+      </section>
 
-          <Timeline duration={duration} marks={issues.map((i) => ({ start: i.start, end: i.end, color: i.color, label: `${i.title} at ${i.start.toFixed(1)}s` }))} onSeek={seek} />
-
-          {status.kind === 'done' && (
-            <p className={`badge ${issues.length ? 'fail' : 'pass'}`}>
-              {issues.length
-                ? `${flashes.length} compliance issue${flashes.length === 1 ? '' : 's'} · ${captions.length} readability note${captions.length === 1 ? '' : 's'}`
-                : 'Pass'}
-            </p>
-          )}
+      {issues.length > 0 && (
+        <section className="panel">
+          <div className="panel-head"><span>Issues</span></div>
           <IssueList issues={issues} onSeek={seek} />
-        </>
+        </section>
       )}
 
       <footer>
@@ -145,6 +183,6 @@ export default function App() {
         </p>
         <p>This is a compliance aid, not a certification. Nothing leaves your device.</p>
       </footer>
-    </main>
+    </div>
   )
 }

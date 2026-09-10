@@ -36,7 +36,7 @@ async function analyze(file: File) {
   const detector = new FlashDetector(CELLS)
   const errors: Error[] = []
   let frames = 0
-  let lastProgress = -1
+  let lastProgress = 0 // wall-clock ms; progress posts at most ~10×/s regardless of decode speed
 
   const decoder = new VideoDecoder({
     output(frame) {
@@ -46,8 +46,9 @@ async function analyze(file: File) {
       const { lum, red } = toGrids(ctx.getImageData(0, 0, W, H).data, CELLS)
       for (const event of detector.push(t, lum, red)) post({ type: 'event', event })
       frames++
-      if (t - lastProgress >= 0.1) {
-        lastProgress = t
+      const now = performance.now()
+      if (now - lastProgress >= 100) {
+        lastProgress = now
         post({ type: 'progress', t, duration })
       }
     },
@@ -57,18 +58,21 @@ async function analyze(file: File) {
   })
   decoder.configure(config)
 
-  // Decode (WebCodecs) with explicit back-pressure: the API has no push-back of its own.
-  const sink = new EncodedPacketSink(track)
-  for await (const packet of sink.packets()) {
-    if (errors.length) throw errors[0]
-    if (decoder.decodeQueueSize > MAX_QUEUE) {
-      await new Promise<void>((resolve) => decoder.addEventListener('dequeue', () => resolve(), { once: true }))
+  try {
+    // Decode (WebCodecs) with explicit back-pressure: the API has no push-back of its own.
+    const sink = new EncodedPacketSink(track)
+    for await (const packet of sink.packets()) {
+      if (decoder.decodeQueueSize > MAX_QUEUE) {
+        await new Promise<void>((resolve) => decoder.addEventListener('dequeue', () => resolve(), { once: true }))
+      }
+      if (errors.length) throw errors[0] // checked after the wait so the real decoder error wins
+      decoder.decode(packet.toEncodedVideoChunk())
     }
-    decoder.decode(packet.toEncodedVideoChunk())
+    await decoder.flush()
+    if (errors.length) throw errors[0]
+  } finally {
+    if (decoder.state !== 'closed') decoder.close()
   }
-  await decoder.flush()
-  decoder.close()
-  if (errors.length) throw errors[0]
 
   for (const event of detector.finish()) post({ type: 'event', event })
   post({ type: 'progress', t: duration, duration })
