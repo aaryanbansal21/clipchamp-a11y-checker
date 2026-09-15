@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { checkCaptions, parseCaptions } from './analysis/captions'
-import type { CaptionEvent, FlashEvent, WorkerOut } from './analysis/types'
+import type { FlashEvent, WorkerOut } from './analysis/types'
 import { IssueList, type Issue } from './ui/IssueList'
 import { Timeline, type Trace } from './ui/Timeline'
-import { buildReport } from './report'
+import { buildReport, buildReportJson, downloadJson } from './report'
 
 type Status =
   | { kind: 'idle' }
@@ -11,7 +10,7 @@ type Status =
   | { kind: 'done'; frames: number; ms: number }
   | { kind: 'error'; message: string }
 
-const COLOR = { general: '#ff5c5c', red: '#c02020', caption: '#4cc2ff' }
+const COLOR = { general: '#ff5c5c', red: '#c02020' }
 
 const SAMPLES = [
   ['flash-5hz.mp4', '5 Hz flash'],
@@ -25,8 +24,6 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [flashes, setFlashes] = useState<FlashEvent[]>([])
   const [trace, setTrace] = useState<Trace>({ t: [], lum: [] })
-  const [captions, setCaptions] = useState<CaptionEvent[]>([])
-  const [captionNote, setCaptionNote] = useState('')
   const [duration, setDuration] = useState(0)
   const [current, setCurrent] = useState(0)
   const [over, setOver] = useState(false)
@@ -58,16 +55,9 @@ export default function App() {
     return () => worker.terminate()
   }, [file])
 
-  async function addFiles(list: FileList | null) {
-    for (const f of Array.from(list ?? [])) {
-      if (/\.(srt|vtt)$/i.test(f.name)) {
-        const cues = parseCaptions(await f.text())
-        setCaptions(checkCaptions(cues))
-        setCaptionNote(cues.length ? `${cues.length} cues from ${f.name}` : `No cues found in ${f.name}`)
-      } else {
-        setFile(f)
-      }
-    }
+  function addFiles(list: FileList | null) {
+    const f = list?.[0]
+    if (f) setFile(f)
   }
 
   async function loadSample(name: string) {
@@ -86,20 +76,11 @@ export default function App() {
     if (v) { v.currentTime = t; v.pause(); setCurrent(t) }
   }
 
-  const issues: Issue[] = [
-    ...flashes.map((f): Issue => ({
-      tier: 'Compliance', start: f.start, end: f.end, color: COLOR[f.kind],
-      title: f.kind === 'red' ? 'Red flash' : 'General flash',
-      detail: `${f.peakPerSecond} flashes/s — WCAG 2.3.1 allows 3`,
-    })),
-    ...captions.map((c): Issue => ({
-      tier: 'Readability', start: c.start, end: c.end, color: COLOR.caption,
-      title: c.kind === 'fast' ? 'Caption too fast' : 'Caption too brief',
-      detail: c.kind === 'fast'
-        ? `${c.cps.toFixed(0)} chars/s — guideline is 20`
-        : `${(c.end - c.start).toFixed(2)} s on screen — guideline is 0.83 s`,
-    })),
-  ].sort((a, b) => a.start - b.start)
+  const issues: Issue[] = flashes.map((f): Issue => ({
+    start: f.start, end: f.end, color: COLOR[f.kind], event: f,
+    title: f.kind === 'red' ? 'Red flash' : 'General flash',
+    detail: `${f.peakPerSecond} flashes/s — WCAG 2.3.1 allows 3`,
+  })).sort((a, b) => a.start - b.start)
 
   async function copyReport() {
     await navigator.clipboard.writeText(buildReport(file?.name ?? '', duration, issues))
@@ -108,10 +89,7 @@ export default function App() {
   }
 
   const toMark = (i: Issue) => ({ start: i.start, end: i.end, color: i.color, label: `${i.title} at ${i.start.toFixed(1)}s` })
-  const lanes = [
-    { name: 'Compliance', marks: issues.filter((i) => i.tier === 'Compliance').map(toMark) },
-    { name: 'Readability', marks: issues.filter((i) => i.tier === 'Readability').map(toMark) },
-  ]
+  const lanes = [{ name: 'Flashes', marks: issues.map(toMark) }]
 
   if (typeof VideoDecoder === 'undefined') {
     return (
@@ -134,7 +112,7 @@ export default function App() {
         <span className="hint">Runs in your browser · nothing is uploaded</span>
         <label className="btn primary">
           Import media
-          <input type="file" multiple hidden accept="video/*,.srt,.vtt" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
+          <input type="file" hidden accept="video/*" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
         </label>
       </header>
 
@@ -150,7 +128,7 @@ export default function App() {
         ) : (
           <div className="empty">
             <div className="empty-icon">⬆</div>
-            Drop a video (MP4 / WebM) here, plus an optional caption file (.srt / .vtt)
+            Drop a video (MP4 / WebM) here
             <div className="samples">
               <span className="muted small">or try a sample:</span>
               {SAMPLES.map(([name, label]) => (
@@ -173,12 +151,11 @@ export default function App() {
           {status.kind === 'done' && (
             <>
               <span className={`badge ${issues.length ? 'fail' : 'pass'}`}>
-                {issues.length
-                  ? `${flashes.length} compliance issue${flashes.length === 1 ? '' : 's'} · ${captions.length} readability note${captions.length === 1 ? '' : 's'}`
-                  : 'Pass'}
+                {issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Pass'}
               </span>
               <span className="muted">{status.frames} frames in {(status.ms / 1000).toFixed(1)} s · {Math.round(status.frames / (status.ms / 1000))} fps</span>
               <button className="btn small" onClick={copyReport}>{copied ? 'Copied' : 'Copy report'}</button>
+              <button className="btn small" onClick={() => downloadJson(`${file?.name ?? 'video'}.a11y.json`, buildReportJson(file?.name ?? '', duration, flashes))}>Download report</button>
             </>
           )}
           {status.kind === 'error' && <span className="error">{status.message}</span>}
@@ -186,11 +163,9 @@ export default function App() {
           <span className="legend">
             <i style={{ background: COLOR.general }} /> General flash
             <i style={{ background: COLOR.red }} /> Red flash
-            <i style={{ background: COLOR.caption }} /> Caption
             <i style={{ background: 'var(--trace)' }} /> Mean luminance
           </span>
         </div>
-        {captionNote && <p className="muted small">{captionNote}</p>}
         <Timeline duration={duration} lanes={lanes} trace={trace} current={current} onSeek={seek} />
       </section>
 
@@ -206,11 +181,12 @@ export default function App() {
         <pre>{`file → Mediabunny demux → VideoDecoder (WebCodecs, in a Worker, with back-pressure)
      → 64×36 luminance grid → WCAG 2.3.1 flash counter → timeline`}</pre>
         <p>
-          <strong>Compliance</strong> checks implement WCAG 2.3.1 (Three Flashes or Below Threshold), the clause EN 301 549 points to
+          <strong>Flash</strong> checks implement WCAG 2.3.1 (Three Flashes or Below Threshold), the clause EN 301 549 points to
           for the European Accessibility Act (in force since 28 June 2025). Flashing content can trigger seizures in up to 1 in 4,000 people.
         </p>
         <p>
-          <strong>Readability</strong> checks follow Netflix/BBC subtitle guidelines (20 characters/second, 5/6 s minimum). About 75% of mobile video is watched on mute.
+          <strong>Fixes</strong> are expressed as edit operations for the editor to apply, so they go through the same undo stack and renderer as any other edit.
+          The <strong>report</strong> is a JSON file with the verdict, every event, and its suggested fixes.
         </p>
         <p>This is a compliance aid, not a certification. Nothing leaves your device.</p>
       </footer>

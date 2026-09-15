@@ -5,16 +5,6 @@ export type FlashEvent = {
   peakPerSecond: number
 }
 
-export type Cue = { start: number; end: number; text: string }
-
-export type CaptionEvent = {
-  kind: 'fast' | 'brief'
-  start: number
-  end: number
-  cps: number
-  text: string
-}
-
 export type WorkerIn = { type: 'analyze'; file: File }
 
 export type WorkerOut =

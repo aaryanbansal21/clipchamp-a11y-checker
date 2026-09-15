@@ -37,3 +37,10 @@ visible "show your work" feature that makes the flash detector legible.
 
 ## Order
 1 → 2 → 3 → 4. Deploy again after each step lands. Step 4 is cut if time runs out.
+
+## Revision (same day)
+- Caption checks removed: out of scope for a flash checker. Parser, tests, Readability lane, SRT sample gone.
+- Actionable results: `src/fixes.ts` maps each flash event to edit operations (`colorAdjust`, `speed`)
+  with a line on which existing editor control would apply it. Buttons on each issue reveal the op.
+  Nothing is applied; the editor owns the timeline.
+- Report file: `Download report` saves `<file>.a11y.json` (verdict, events, suggested fix ops) via a Blob URL.

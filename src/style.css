@@ -65,14 +65,11 @@ body { margin: 0; }
 .tl-playhead::before { content: ''; position: absolute; top: 0; left: -5px; width: 12px; height: 12px; background: #fff; border-radius: 50%; }
 
 .issues { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
-.issues button { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; cursor: pointer; font-size: 0.9rem; }
-.issues button:hover { border-color: var(--accent); }
+.issues .issue-main { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; cursor: pointer; font-size: 0.9rem; }
+.issues .issue-main:hover { border-color: var(--accent); }
 .issues .dot { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 .issues time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 110px; }
 .issues .detail { color: var(--muted); }
-.issues em { margin-left: auto; font-style: normal; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--muted); }
-.issues em.compliance { color: #ffb4b4; }
-.issues em.readability { color: #a8e0ff; }
 
 footer { margin-top: 16px; font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
 footer h2 { font-size: 0.95rem; color: var(--text); margin: 0 0 8px; }
@@ -82,9 +79,16 @@ footer pre { background: var(--panel); border: 1px solid var(--line); border-rad
 @media (max-width: 600px) {
   .hint { display: none; }
   .tl { grid-template-columns: 72px 1fr; }
-  .issues button { flex-wrap: wrap; }
+  .issues .issue-main { flex-wrap: wrap; }
 }
 .samples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 20px; }
 .btn.small { padding: 4px 10px; font-size: 0.8rem; }
+.btn.active { border-color: var(--accent); color: #fff; background: var(--accent); }
+.issue-row { display: flex; align-items: center; gap: 8px; }
+.issue-row .issue-main { flex: 1; }
+.fixes { display: flex; gap: 6px; flex: none; }
+.fix-detail { margin: 4px 0 8px 22px; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--panel-2); border-radius: 0 6px 6px 0; font-size: 0.85rem; }
+.fix-detail p { margin: 0 0 6px; }
+.fix-detail pre { margin: 0 0 6px; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; }
 .tl-trace svg { position: absolute; inset: 4px 0; width: 100%; height: calc(100% - 8px); display: block; }
 .tl-trace polyline { fill: none; stroke: var(--trace); stroke-width: 1.5; }
