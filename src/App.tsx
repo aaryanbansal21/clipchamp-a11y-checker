@@ -3,6 +3,7 @@ import { checkCaptions, parseCaptions } from './analysis/captions'
 import type { CaptionEvent, FlashEvent, WorkerOut } from './analysis/types'
 import { IssueList, type Issue } from './ui/IssueList'
 import { Timeline } from './ui/Timeline'
+import { buildReport } from './report'
 
 type Status =
   | { kind: 'idle' }
@@ -11,6 +12,13 @@ type Status =
   | { kind: 'error'; message: string }
 
 const COLOR = { general: '#ff5c5c', red: '#c02020', caption: '#4cc2ff' }
+
+const SAMPLES = [
+  ['flash-5hz.mp4', '5 Hz flash'],
+  ['red-5hz.mp4', 'Red flash'],
+  ['burst-in-calm.mp4', '1 s burst in 20 s'],
+  ['steady.mp4', 'Steady (pass)'],
+]
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null)
@@ -21,6 +29,7 @@ export default function App() {
   const [duration, setDuration] = useState(0)
   const [current, setCurrent] = useState(0)
   const [over, setOver] = useState(false)
+  const [copied, setCopied] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const url = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file])
@@ -58,6 +67,11 @@ export default function App() {
     }
   }
 
+  async function loadSample(name: string) {
+    const blob = await (await fetch(`/samples/${name}`)).blob()
+    setFile(new File([blob], name, { type: 'video/mp4' }))
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     setOver(false)
@@ -83,6 +97,12 @@ export default function App() {
         : `${(c.end - c.start).toFixed(2)} s on screen — guideline is 0.83 s`,
     })),
   ].sort((a, b) => a.start - b.start)
+
+  async function copyReport() {
+    await navigator.clipboard.writeText(buildReport(file?.name ?? '', duration, issues))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   const toMark = (i: Issue) => ({ start: i.start, end: i.end, color: i.color, label: `${i.title} at ${i.start.toFixed(1)}s` })
   const lanes = [
@@ -128,6 +148,12 @@ export default function App() {
           <div className="empty">
             <div className="empty-icon">⬆</div>
             Drop a video (MP4 / WebM) here, plus an optional caption file (.srt / .vtt)
+            <div className="samples">
+              <span className="muted small">or try a sample:</span>
+              {SAMPLES.map(([name, label]) => (
+                <button key={name} className="btn" onClick={() => loadSample(name)}>{label}</button>
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -149,6 +175,7 @@ export default function App() {
                   : 'Pass'}
               </span>
               <span className="muted">{status.frames} frames in {(status.ms / 1000).toFixed(1)} s · {Math.round(status.frames / (status.ms / 1000))} fps</span>
+              <button className="btn small" onClick={copyReport}>{copied ? 'Copied' : 'Copy report'}</button>
             </>
           )}
           {status.kind === 'error' && <span className="error">{status.message}</span>}

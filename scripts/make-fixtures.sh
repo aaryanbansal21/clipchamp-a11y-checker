@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates demo videos in ./fixtures (git-ignored). Requires ffmpeg (brew install ffmpeg).
+# Generates the sample videos in ./public/samples (shipped with the app). Requires ffmpeg (brew install ffmpeg).
 #
 # Expected checker results:
 #   flash-5hz.mp4  → 1 general flash event, 5 flashes/s, ~0.1–5.0 s
@@ -8,8 +8,8 @@
 #   burst-in-calm.mp4 → 20 s grey with one flashing second at 10 s: 1 general event at 10–11 s
 #                       (average 0.25 flashes/s, but the per-second window still catches it)
 set -euo pipefail
-mkdir -p fixtures
-cd fixtures
+mkdir -p public/samples
+cd public/samples
 
 # Black/white alternating every 0.1 s (5 flashes per second).
 ffmpeg -y -loglevel error -f lavfi -i "color=black:s=1280x720:r=30:d=5" \

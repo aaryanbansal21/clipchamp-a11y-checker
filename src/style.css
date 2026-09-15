@@ -83,3 +83,5 @@ footer pre { background: var(--panel); border: 1px solid var(--line); border-rad
   .tl { grid-template-columns: 72px 1fr; }
   .issues button { flex-wrap: wrap; }
 }
+.samples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 20px; }
+.btn.small { padding: 4px 10px; font-size: 0.8rem; }

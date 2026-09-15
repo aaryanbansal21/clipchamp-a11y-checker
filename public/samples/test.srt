@@ -1,0 +1,7 @@
+1
+00:00:00,500 --> 00:00:01,000
+This caption is far too fast to read comfortably
+
+2
+00:00:02,000 --> 00:00:04,000
+This one is fine
