@@ -2,7 +2,7 @@
 
 Scans a video for flashing content that fails **WCAG 2.3.1** and checks caption files for readability — entirely in the browser. Nothing is uploaded.
 
-**Live:** _(Vercel URL)_
+**Live:** https://clipchampext.vercel.app
 
 ## Why
 
