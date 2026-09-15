@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { FlashEvent, WorkerOut } from './analysis/types'
 import { IssueList, type Issue } from './ui/IssueList'
 import { Timeline, type Trace } from './ui/Timeline'
-import { buildReport, buildReportJson, downloadJson } from './report'
+import { buildReportJson, downloadJson } from './report'
 
 type Status =
   | { kind: 'idle' }
@@ -27,7 +27,6 @@ export default function App() {
   const [duration, setDuration] = useState(0)
   const [current, setCurrent] = useState(0)
   const [over, setOver] = useState(false)
-  const [copied, setCopied] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const url = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file])
@@ -82,12 +81,6 @@ export default function App() {
     detail: `${f.peakPerSecond} flashes/s — WCAG 2.3.1 allows 3`,
   })).sort((a, b) => a.start - b.start)
 
-  async function copyReport() {
-    await navigator.clipboard.writeText(buildReport(file?.name ?? '', duration, issues))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
   const toMark = (i: Issue) => ({ start: i.start, end: i.end, color: i.color, label: `${i.title} at ${i.start.toFixed(1)}s` })
   const lanes = [{ name: 'Flashes', marks: issues.map(toMark) }]
 
@@ -109,7 +102,6 @@ export default function App() {
     >
       <header className="topbar">
         <span className="brand">Accessibility Checker</span>
-        <span className="hint">Runs in your browser · nothing is uploaded</span>
         <label className="btn primary">
           Import media
           <input type="file" hidden accept="video/*" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
@@ -154,7 +146,6 @@ export default function App() {
                 {issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Pass'}
               </span>
               <span className="muted">{status.frames} frames in {(status.ms / 1000).toFixed(1)} s · {Math.round(status.frames / (status.ms / 1000))} fps</span>
-              <button className="btn small" onClick={copyReport}>{copied ? 'Copied' : 'Copy report'}</button>
               <button className="btn small" onClick={() => downloadJson(`${file?.name ?? 'video'}.a11y.json`, buildReportJson(file?.name ?? '', duration, flashes))}>Download report</button>
             </>
           )}
@@ -176,20 +167,6 @@ export default function App() {
         </section>
       )}
 
-      <footer>
-        <h2>How it works</h2>
-        <pre>{`file → Mediabunny demux → VideoDecoder (WebCodecs, in a Worker, with back-pressure)
-     → 64×36 luminance grid → WCAG 2.3.1 flash counter → timeline`}</pre>
-        <p>
-          <strong>Flash</strong> checks implement WCAG 2.3.1 (Three Flashes or Below Threshold), the clause EN 301 549 points to
-          for the European Accessibility Act (in force since 28 June 2025). Flashing content can trigger seizures in up to 1 in 4,000 people.
-        </p>
-        <p>
-          <strong>Fixes</strong> are expressed as edit operations for the editor to apply, so they go through the same undo stack and renderer as any other edit.
-          The <strong>report</strong> is a JSON file with the verdict, every event, and its suggested fixes.
-        </p>
-        <p>This is a compliance aid, not a certification. Nothing leaves your device.</p>
-      </footer>
     </div>
   )
 }
