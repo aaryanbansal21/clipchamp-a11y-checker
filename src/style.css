@@ -10,6 +10,7 @@
   --accent-hover: #9059ff;
   --pass: #3ddc97;
   --fail: #ff5c5c;
+  --trace: #f5c542;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -85,3 +86,5 @@ footer pre { background: var(--panel); border: 1px solid var(--line); border-rad
 }
 .samples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 20px; }
 .btn.small { padding: 4px 10px; font-size: 0.8rem; }
+.tl-trace svg { position: absolute; inset: 4px 0; width: 100%; height: calc(100% - 8px); display: block; }
+.tl-trace polyline { fill: none; stroke: var(--trace); stroke-width: 1.5; }

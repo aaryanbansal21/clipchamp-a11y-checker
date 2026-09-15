@@ -37,6 +37,12 @@ async function analyze(file: File) {
   const errors: Error[] = []
   let frames = 0
   let lastProgress = 0 // wall-clock ms; progress posts at most ~10×/s regardless of decode speed
+  const batchT: number[] = [], batchL: number[] = []
+  const flushSamples = () => {
+    if (!batchT.length) return
+    post({ type: 'samples', t: Float32Array.from(batchT), lum: Float32Array.from(batchL) })
+    batchT.length = batchL.length = 0
+  }
 
   const decoder = new VideoDecoder({
     output(frame) {
@@ -46,6 +52,10 @@ async function analyze(file: File) {
       const { lum, red } = toGrids(ctx.getImageData(0, 0, W, H).data, CELLS)
       for (const event of detector.push(t, lum, red)) post({ type: 'event', event })
       frames++
+      let sum = 0
+      for (let i = 0; i < CELLS; i++) sum += lum[i]
+      batchT.push(t); batchL.push(sum / CELLS)
+      if (batchT.length >= 64) flushSamples()
       const now = performance.now()
       if (now - lastProgress >= 100) {
         lastProgress = now
@@ -74,6 +84,7 @@ async function analyze(file: File) {
     if (decoder.state !== 'closed') decoder.close()
   }
 
+  flushSamples()
   for (const event of detector.finish()) post({ type: 'event', event })
   post({ type: 'progress', t: duration, duration })
   post({ type: 'done', frames, ms: Math.round(performance.now() - t0) })

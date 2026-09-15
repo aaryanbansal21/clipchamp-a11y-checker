@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { checkCaptions, parseCaptions } from './analysis/captions'
 import type { CaptionEvent, FlashEvent, WorkerOut } from './analysis/types'
 import { IssueList, type Issue } from './ui/IssueList'
-import { Timeline } from './ui/Timeline'
+import { Timeline, type Trace } from './ui/Timeline'
 import { buildReport } from './report'
 
 type Status =
@@ -24,6 +24,7 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [flashes, setFlashes] = useState<FlashEvent[]>([])
+  const [trace, setTrace] = useState<Trace>({ t: [], lum: [] })
   const [captions, setCaptions] = useState<CaptionEvent[]>([])
   const [captionNote, setCaptionNote] = useState('')
   const [duration, setDuration] = useState(0)
@@ -39,6 +40,7 @@ export default function App() {
   useEffect(() => {
     if (!file) return
     setFlashes([])
+    setTrace({ t: [], lum: [] })
     setDuration(0)
     setCurrent(0)
     setStatus({ kind: 'running', t: 0, duration: 0 })
@@ -48,6 +50,7 @@ export default function App() {
         setStatus({ kind: 'running', t: data.t, duration: data.duration })
         setDuration((d) => d || data.duration) // fallback if <video> can't report metadata
       } else if (data.type === 'event') setFlashes((f) => [...f, data.event])
+      else if (data.type === 'samples') setTrace((p) => ({ t: [...p.t, ...data.t], lum: [...p.lum, ...data.lum] }))
       else if (data.type === 'done') { setStatus({ kind: 'done', frames: data.frames, ms: data.ms }); worker.terminate() }
       else { setStatus({ kind: 'error', message: data.message }); worker.terminate() }
     }
@@ -184,10 +187,11 @@ export default function App() {
             <i style={{ background: COLOR.general }} /> General flash
             <i style={{ background: COLOR.red }} /> Red flash
             <i style={{ background: COLOR.caption }} /> Caption
+            <i style={{ background: 'var(--trace)' }} /> Mean luminance
           </span>
         </div>
         {captionNote && <p className="muted small">{captionNote}</p>}
-        <Timeline duration={duration} lanes={lanes} current={current} onSeek={seek} />
+        <Timeline duration={duration} lanes={lanes} trace={trace} current={current} onSeek={seek} />
       </section>
 
       {issues.length > 0 && (

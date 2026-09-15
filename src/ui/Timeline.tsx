@@ -1,5 +1,16 @@
 export type Mark = { start: number; end: number; color: string; label: string }
 export type Lane = { name: string; marks: Mark[] }
+export type Trace = { t: number[]; lum: number[] }
+
+const MAX_POINTS = 2000
+
+/** SVG points for the luminance trace, x in seconds and y in [0, 1] (1 = black), downsampled by stride. */
+export function tracePoints(trace: Trace, max = MAX_POINTS): string {
+  const stride = Math.max(1, Math.ceil(trace.t.length / max))
+  const out: string[] = []
+  for (let i = 0; i < trace.t.length; i += stride) out.push(`${trace.t[i]},${1 - trace.lum[i]}`)
+  return out.join(' ')
+}
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -9,11 +20,13 @@ const step = (d: number) => [1, 2, 5, 10, 15, 30, 60, 120, 300].find((s) => d / 
 export function Timeline({
   duration,
   lanes,
+  trace,
   current,
   onSeek,
 }: {
   duration: number
   lanes: Lane[]
+  trace: Trace
   current: number
   onSeek: (t: number) => void
 }) {
@@ -26,6 +39,7 @@ export function Timeline({
     <div className="tl">
       <div className="tl-names">
         <div className="tl-ruler-spacer" />
+        <div className="tl-name">Luminance</div>
         {lanes.map((l) => (
           <div key={l.name} className="tl-name">{l.name}</div>
         ))}
@@ -41,6 +55,11 @@ export function Timeline({
           {ticks.map((t) => (
             <span key={t} className="tl-tick" style={{ left: pct(t) }}>{fmt(t)}</span>
           ))}
+        </div>
+        <div className="tl-lane tl-trace">
+          <svg viewBox={`0 0 ${duration} 1`} preserveAspectRatio="none">
+            <polyline points={tracePoints(trace)} vectorEffect="non-scaling-stroke" />
+          </svg>
         </div>
         {lanes.map((l) => (
           <div key={l.name} className="tl-lane">
