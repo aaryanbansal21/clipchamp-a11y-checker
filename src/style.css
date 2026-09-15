@@ -73,7 +73,6 @@ body { margin: 0; }
 
 
 @media (max-width: 600px) {
-  .hint { display: none; }
   .tl { grid-template-columns: 72px 1fr; }
   .issues .issue-main { flex-wrap: wrap; }
 }
